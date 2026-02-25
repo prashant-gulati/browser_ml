@@ -80,8 +80,27 @@ Functions in `detection-utils.js` take DOM elements (`ctx`, `canvas`, `video`, `
 ### Security
 
 - **CSP** — `<meta http-equiv="Content-Security-Policy">` in `browser-ml.html`. Uses `'unsafe-inline'` for `script-src` (unavoidable for inline module scripts) and `worker-src blob:` (required for MediaPipe/BodyPix WASM workers).
+
+CSP = Content security policy = HTTP response header (or <meta> tag) that tells the browser exactly which resources are allowed to load and from where. Anything not whitelisted is blocked — it's a defense-in-depth layer against XSS (cross site scripting) and data injection attacks.
+
 - **SRI** — `SCRIPT_SRI` map in `browser-ml.html` adds `integrity` + `crossorigin` to all `loadScript()` calls. MediaPipe uses `import()` (dynamic ESM) which does not support SRI in current browsers — documented gap.
+
+SRI = Subresource integrity: browser security feature that lets you verify that files fetched from external sources (like a CDN) haven't been tampered with.
+
+You add a cryptographic hash to a <script> or <link> tag:
+```bash
+<script src="https://cdn.example.com/lib.js"
+        integrity="sha384-abc123..."
+        crossorigin="anonymous"></script>
+```
+The browser fetches the file, hashes it, and compares it to the integrity attribute. If they don't match — because the CDN was compromised or the file was modified — the browser refuses to execute it.
+
+CORS = Cross origin resource sharing: browser security mechanism that controls how web pages can request resources from a different origin (domain, protocol, or port) than the one that served the page.
+SOP = Same origin policy: prevents sending a request to other origin / reading response from another origin. CORS is the mechanism that lets a server opt in to relaxing the read restriction for specific trusted origins.
+CSRF = Cross-Site Request Forgery
+
 - **Monitoring** — Sentry + web-vitals SDKs loaded with SRI hashes. Both are no-ops unless `window.SENTRY_DSN` is set at deploy time. Inference latency is reported to Sentry as a rolling 30-frame average every 90 frames.
+
 - **Audit** — `devDependencies` in `package.json` pin the exact CDN versions of all 7 ML libraries so `npm audit` covers them.
 
 ### Updating SRI hashes

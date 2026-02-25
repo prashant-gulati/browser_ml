@@ -154,7 +154,9 @@ export function drawHands(ctx, canvas, hands) {
 
 let _maskCanvas = null;
 export function drawSegmentation(ctx, canvas, seg, createCanvas = () => document.createElement('canvas')) {
-  const { data, width, height } = seg;
+  const { data } = seg;
+  const width  = Math.round(seg.width);
+  const height = Math.round(seg.height);
   if (!_maskCanvas || _maskCanvas.width !== width || _maskCanvas.height !== height) {
     _maskCanvas = createCanvas();
     _maskCanvas.width = width;

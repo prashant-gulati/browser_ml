@@ -8,13 +8,18 @@
     Notes:
     - 'unsafe-inline' for script-src is required because JS lives in an inline <script type="module">.
       Nonce-based CSP could be used if the deployment platform supports header injection at serve time.
+    - 'unsafe-eval' for script-src is required by TF.js: its WebGL backend generates GLSL shaders via
+      new Function() at runtime. Without it TF.js fails to initialize and all TF.js-backed models break.
     - worker-src blob: is required for MediaPipe and BodyPix WASM web workers.
     - connect-src cdn.jsdelivr.net is required for MediaPipe's WASM fetch calls.
+    - connect-src browser.sentry-cdn.com is required for Sentry to fetch its own source maps at runtime.
+    - connect-src tfhub.dev www.kaggle.com is required for blazeface: its UMD bundle fetches model weights
+      from TF Hub, which now redirects to Kaggle's model hosting.
   -->
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'none';
-    script-src  'self' 'unsafe-inline' cdn.jsdelivr.net browser.sentry-cdn.com unpkg.com;
-    connect-src 'self' *.ingest.sentry.io storage.googleapis.com cdn.jsdelivr.net;
+    script-src  'self' 'unsafe-inline' 'unsafe-eval' cdn.jsdelivr.net browser.sentry-cdn.com unpkg.com;
+    connect-src 'self' *.ingest.sentry.io storage.googleapis.com cdn.jsdelivr.net browser.sentry-cdn.com tfhub.dev www.kaggle.com;
     media-src   'self';
     img-src     'self' data:;
     style-src   'self' 'unsafe-inline';

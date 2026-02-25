@@ -1,38 +1,8 @@
-https://code.claude.com/docs/en/best-practices
-
-Good prompting: explore, plan, implement, commit; @ for files
-/clear to clear context window
-Claude.MD - /init - advisory
-Set up hooks - .claude/settings.json - deterministic
-Skills - .claude/skills - domain specific
-MCP servers
-CLI tools
-Plugins bundle skills, hooks, subagents, and MCP servers
-Agents - .claude/agents/security-reviewer.md - run in separate context windows
-
----
-name: security-reviewer
-description: Reviews code for security vulnerabilities
-tools: Read, Grep, Glob, Bash
-model: opus
----
-You are a senior security engineer. Review code for:
-- Injection vulnerabilities (SQL, XSS, command injection)
-- Authentication and authorization flaws
-- Secrets or credentials in code
-- Insecure data handling
-
-Provide specific line references and suggested fixes.
-
-
-
 **Production Readiness**
-Testing
+Testing, Monitoring and analytics, Security vulnerabilities
+
 UI changes can be verified using the Claude in Chrome extension. It opens new tabs in your browser, tests the UI, and iterates until the code works.
 Your verification can also be a test suite, a linter, or a Bash command that checks output. Invest in making your verification rock-solid.
-
-Monitoring and analytics
-Security vulnerabilities
 
 ***Not yet captured — worth considering:***
 
