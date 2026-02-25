@@ -69,6 +69,6 @@ jobs:
     if: startsWith(github.ref, 'refs/heads/claude/')
     steps:
       - uses: actions/checkout@v4
-      - run: npx --yes netlify-cli deploy --prod --dir=. --site=${{ secrets.NETLIFY_SITE_ID }}
+      - run: npx --yes netlify-cli deploy --prod --dir=. --site=${{ secrets.NETLIFY_SITE_ID }} --message="${{ github.event.head_commit.message }}"
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
