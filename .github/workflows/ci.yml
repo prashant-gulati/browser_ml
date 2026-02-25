@@ -2,9 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, 'claude/**']
-  pull_request:
-    branches: [main]
+    branches: ['claude/**']
 
 jobs:
   # ── Unit tests ───────────────────────────────────────────────────────────────
@@ -61,3 +59,16 @@ jobs:
         # Known: TF.js model packages have peer dep conflicts between themselves.
         # These are audit-only deps (not imported); the audit still catches real CVEs.
         continue-on-error: false
+
+  # ── Deploy to Netlify ─────────────────────────────────────────────────────────
+  # Only runs after all tests pass. Netlify auto-deploy must be disabled
+  # in the Netlify dashboard (Build & deploy → Continuous deployment → Stop builds).
+  deploy:
+    needs: [unit-tests, e2e-tests, security-audit]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/heads/claude/')
+    steps:
+      - uses: actions/checkout@v4
+      - run: npx --yes netlify-cli deploy --prod --dir=. --site=${{ secrets.NETLIFY_SITE_ID }}
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
