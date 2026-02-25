@@ -1,65 +1,126 @@
-**Production Readiness**
-Testing, Monitoring and analytics, Security vulnerabilities
+# Browser ML Playground
 
-UI changes can be verified using the Claude in Chrome extension. It opens new tabs in your browser, tests the UI, and iterates until the code works.
-Your verification can also be a test suite, a linter, or a Bash command that checks output. Invest in making your verification rock-solid.
+Real-time machine learning in the browser — no server, no bundler, no install. Point your webcam and switch between 7 ML backends live.
 
-***Not yet captured — worth considering:***
+**[Live demo](https://prashantgulati.netlify.app/browser-ml.html)**
 
-Performance & UX
+---
 
-- Model weight caching — models are 5–20MB each; cache them in Cache API / IndexedDB so repeat visits don't re-download. Big UX win.
-- Load progress — show actual download % instead of just "Loading…"
-- WebGL/WASM feature detection — detect GPU support before starting, degrade gracefully with a clear message instead of a cryptic error
-- Adaptive frame rate — detect when GPU is saturated and back off inference rate automatically (partially done for BodyPix but not generalized)
+## What it does
 
-Security
-- Subresource Integrity (SRI) hashes on CDN <script> tags — prevents supply-chain attacks if jsDelivr is compromised
-- Content Security Policy — restrict what scripts/resources the page can load
+Runs seven computer vision models entirely on-device via WebGL/WASM, side-by-side with a model picker so you can compare them in real time:
 
-Privacy / Legal
-- Explicit notice that all processing is local, no video leaves the device — important for GDPR/CCPA if this is public-facing
+| Backend | What you see |
+|---|---|
+| BlazeFace | Face bounding boxes |
+| MediaPipe Face Mesh | 468 facial landmarks |
+| COCO-SSD | Object detection with labels |
+| PoseNet | Full-body skeleton |
+| HandPose | 21 hand keypoints |
+| BodyPix | Pixel-level person segmentation |
+| MediaPipe Tasks Vision | GPU-accelerated face detection |
+
+All video stays on your device. Nothing is sent to a server.
+
+---
+
+## Architecture
+
+This is a **zero-build, single-file app** (`browser-ml.html`). No framework, no bundler, no build step — open the file and it works. ML models load from CDN on demand when you pick a backend.
+
+To keep the logic testable without a real browser, pure functions live in [`src/detection-utils.js`](src/detection-utils.js) and are imported by the HTML file. Functions take DOM elements as explicit parameters rather than closing over globals — this is the key design constraint.
+
+**Runtime flow:**
+1. User picks a backend from the card picker
+2. `startBackend()` opens the camera, boots the model, starts the loops
+3. `runInferenceLoop()` runs inference at ~30fps and writes results to `currentData`
+4. `renderLoop()` reads `currentData` on every animation frame and calls the appropriate draw function
+
+**Model loading:** TF.js-backed models load as UMD bundles via `loadScript()`. MediaPipe models load as ESM via dynamic `import()`.
+
+---
+
+## Getting started
+
+```bash
+# Serve locally (required — getUserMedia needs a secure origin)
+npm run serve
+# Open http://localhost:8080
+```
+
+Or just open the [live demo](https://prashantgulati.netlify.app/browser-ml.html) — no setup needed.
+
+---
+
+## Development
+
+```bash
+npm install --legacy-peer-deps   # TF.js packages have conflicting peer deps
+
+npm test                         # Unit tests (Vitest, ~0.5s)
+npm run test:watch               # Watch mode
+npm run test:e2e                 # E2E + visual regression (Playwright, needs Chromium)
+npm run test:e2e:update          # Regenerate visual regression baselines
+
+# Run a single unit test file
+npx vitest run tests/unit/detection-utils.test.js
+
+# Run a single E2E test by name
+npx playwright test --grep "picker is visible"
+
+# Load test (requires k6 — https://k6.io/docs/get-started/installation/)
+k6 run k6/load-test.js
+k6 run --env BASE_URL=https://prashantgulati.netlify.app k6/load-test.js
+```
+
+**Unit tests** (`tests/unit/`) use Vitest + jsdom. Canvas has no real implementation in jsdom; `createMockCtx()` and `createMockCanvas()` are globals injected by `vitest.setup.js`.
+
+**E2E tests** (`tests/e2e/`) use Playwright with `--use-fake-ui-for-media-stream` and `--use-fake-device-for-media-stream` Chrome flags — no real camera needed. Visual regression baselines are committed in `tests/e2e/snapshots/`.
+
+---
+
+## Security
+
+- **Content Security Policy** — `<meta http-equiv="Content-Security-Policy">` restricts what scripts and resources the page can load. `'unsafe-inline'` and `'unsafe-eval'` are required by inline ES modules and TF.js's WebGL shader compiler respectively.
+- **Subresource Integrity** — the `SCRIPT_SRI` map adds `integrity` + `crossorigin` attributes to every `loadScript()` call, and Sentry/web-vitals tags carry SRI hashes. If a CDN is compromised, the browser refuses to execute the file. MediaPipe uses dynamic `import()` which does not yet support SRI — documented gap.
+- **Monitoring** — Sentry + web-vitals load with SRI hashes and are no-ops unless `window.SENTRY_DSN` is set at deploy time. Inference latency is tracked as a rolling 30-frame average, reported to Sentry every 90 frames.
+- **Dependency auditing** — `devDependencies` pin the exact CDN versions of all 7 ML libraries so `npm audit` covers them.
+
+**Updating SRI hashes** when bumping a CDN library version:
+```bash
+curl -s <CDN_URL> | openssl dgst -sha384 -binary | openssl base64 -A
+```
+Update `SCRIPT_SRI` in `browser-ml.html` and the `<script integrity="...">` tags for Sentry/web-vitals.
+
+---
+
+## Future improvements
+
+**Performance & UX**
+- Model weight caching — models are 5–20MB each; caching in Cache API / IndexedDB would eliminate re-downloads on repeat visits
+- Load progress — show actual download % instead of "Loading…"
+- WebGL/WASM feature detection — detect GPU support before starting, degrade gracefully instead of showing a cryptic error
+- Adaptive frame rate — generalize the BodyPix throttle to all backends when the GPU is saturated
+
+**Privacy / Legal**
+- Explicit on-page notice that all processing is local and no video leaves the device — important for GDPR/CCPA if public-facing
 - Camera permission UX — handle the "remember this choice" flow and permission revocation
 
-Accessibility
-- Keyboard navigation through the picker
-- ARIA labels on the detection count badge and status
+**Accessibility**
+- Keyboard navigation through the backend picker
+- ARIA labels on the detection count badge and status element
 
-Reliability
-- HTTPS enforcement notice — getUserMedia requires HTTPS; show a clear message if accessed over HTTP rather than a confusing camera error
-- Cross-browser smoke tests — especially Safari/iOS (WASM + WebGL behaves differently) and Firefox
+**Reliability**
+- HTTPS enforcement notice — `getUserMedia` requires HTTPS; show a clear message if accessed over HTTP rather than a confusing camera error
+- Cross-browser smoke tests — Safari/iOS (WASM + WebGL behaves differently) and Firefox
 
-Operability
-- Version pinning strategy — CDN URLs are pinned to exact versions now (good), but you need a process for updating them when models get security patches
-- CI/CD — run tests on PRs, catch broken CDN URLs before they reach users
+**Operability**
+- SRI hash update process — CDN URLs are pinned to exact versions, but there's no automated process for bumping them when models get security patches
+- CI/CD — run tests on PRs to catch broken CDN URLs before they reach users
 
-The highest-leverage items that aren't in your plan at all are model weight caching, SRI hashes, and the privacy notice.
-
-**Model Selection**
-- TF.js / Mediapipe models
-- Pytorch version - ONNX Runtime web
-- Transformers.js version
-
-**More mediapipe**
-Vision (Browser-compatible)
-Model	What it does
-
-Gesture Recognition	Detects hand gestures (thumbs up, peace sign, etc.) — built on top of hand landmarks
-Image Classification	Classifies what's in an image (cat, car, etc.)
-Image Segmentation	Pixel-level segmentation — selfie, hair, or general objects (newer/faster than BodyPix)
-Interactive Segmentation	Segment a specific object based on a user click/tap
-Holistic Landmarker	Face + pose + both hands simultaneously in one pipeline
-Face Stylizer	Applies artistic styles to faces (anime, oil painting, etc.)
-Image Embedding	Converts an image into a vector — useful for similarity search
-
-Text (Browser-compatible)
-Model	What it does
-
-Text Classification	Sentiment analysis, spam detection, etc.
-Text Embedding	Converts text to vectors for semantic similarity
-Language Detection	Identifies what language a string is written in
-
-Audio (Browser-compatible)
-Model	What it does
-
-Audio Classification	Classifies sounds — music, speech, dog barking, etc
+**Expand model selection**
+- More MediaPipe Vision tasks: Gesture Recognition, Image Segmentation, Holistic Landmarker, Face Stylizer, Image Embedding, Interactive Segmentation
+- MediaPipe Text: Text Classification, Text Embedding, Language Detection
+- MediaPipe Audio: Audio Classification
+- PyTorch models via ONNX Runtime Web
+- Hugging Face models via Transformers.js
