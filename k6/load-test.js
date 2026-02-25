@@ -41,7 +41,7 @@ export default function () {
 
   const ok = check(res, {
     'status is 200':              r => r.status === 200,
-    'contains Detection Playground': r => r.body.includes('Browser ML Playground'),
+    'contains Browser ML Playground': r => r.body.includes('Browser ML Playground'),
     'contains all 7 backends':    r => ['blazeface', 'mediapipe', 'cocossd', 'posenet',
                                         'handpose', 'bodypix', 'facemesh']
                                         .every(b => r.body.includes(b)),

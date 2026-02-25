@@ -17,8 +17,8 @@ test.describe('Picker page', () => {
     await expect(page.locator('#status')).toBeHidden();
   });
 
-  test('h1 text is "Detection Playground"', async ({ page }) => {
-    await expect(page.locator('#picker h1')).toHaveText('Detection Playground');
+  test('h1 text is "Browser ML Playground"', async ({ page }) => {
+    await expect(page.locator('#picker h1')).toHaveText('Browser ML Playground');
   });
 
   test('all 7 backend cards are visible', async ({ page }) => {
