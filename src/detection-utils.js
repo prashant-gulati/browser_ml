@@ -1,6 +1,9 @@
 // Pure drawing utilities extracted from browser-ml.html for testability.
 // All drawing functions take `ctx` as an explicit first parameter (no closure over DOM).
 
+// ctx is a Canvas 2D rendering context — the standard browser API object returned by canvas.getContext('2d').
+// It's the drawing surface you paint onto. All the drawing methods in this file use it:
+
 // ── Drawing primitives ────────────────────────────────────────────────────────
 
 export function drawBox(ctx, x, y, w, h, label, color = '#00FF88') {
