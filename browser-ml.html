@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <!--
+    Content Security Policy
+    Notes:
+    - 'unsafe-inline' for script-src is required because JS lives in an inline <script type="module">.
+      Nonce-based CSP could be used if the deployment platform supports header injection at serve time.
+    - worker-src blob: is required for MediaPipe and BodyPix WASM web workers.
+    - connect-src cdn.jsdelivr.net is required for MediaPipe's WASM fetch calls.
+  -->
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'none';
+    script-src  'self' 'unsafe-inline' cdn.jsdelivr.net browser.sentry-cdn.com unpkg.com;
+    connect-src 'self' *.ingest.sentry.io storage.googleapis.com cdn.jsdelivr.net;
+    media-src   'self';
+    img-src     'self' data:;
+    style-src   'self' 'unsafe-inline';
+    worker-src  blob:;
+  " />
+  <title>Detection Playground</title>
+  <!-- Monitoring: Sentry error tracking + performance tracing -->
+  <!-- Disabled when window.SENTRY_DSN is not set (e.g. local dev) -->
+  <!-- DSN injection for Netlify: add a _headers file with the SENTRY_DSN meta tag -->
+  <!-- DSN injection for Vercel: use Edge Middleware or environment variable injection -->
+  <script
+    src="https://browser.sentry-cdn.com/7.119.0/bundle.min.js"
+    integrity="sha384-N/+t7zuoySxu9rbUlySpn5qv9w/rBT0D7HE35N2dXNy/1W68iV8i6hc13TPJnKOB"
+    crossorigin="anonymous"
+  ></script>
+  <!-- Web Vitals (LCP, FID, CLS, FCP, TTFB) reported to Sentry -->
+  <script
+    src="https://unpkg.com/web-vitals@3.5.2/dist/web-vitals.umd.cjs"
+    integrity="sha384-01ZLuC4apTGz4y+bs+Ci36aH6XAGnp9tEdKDWcNGG9pliWyhBuw3WUu5uXFehxmf"
+    crossorigin="anonymous"
+  ></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #000;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      font-family: -apple-system, sans-serif;
+      color: #fff;
+      overflow: hidden;
+    }
+
+    #container {
+      position: relative;
+      width: 100%;
+      max-width: 640px;
+    }
+
+    video {
+      display: block;
+      width: 100%;
+      border-radius: 12px;
+      transform: scaleX(-1);
+    }
+
+    canvas {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      border-radius: 12px;
+      transform: scaleX(-1);
+    }
+
+    #status {
+      margin-top: 16px;
+      font-size: 14px;
+      color: #aaa;
+      text-align: center;
+      min-height: 20px;
+    }
+
+    #detection-count {
+      position: absolute;
+      top: 12px; right: 12px;
+      background: rgba(0,0,0,0.6);
+      color: #fff;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 600;
+      pointer-events: none;
+    }
+
+    #switch-btn {
+      position: absolute;
+      top: 12px; left: 12px;
+      background: rgba(0,0,0,0.6);
+      color: #aaa;
+      border: 1px solid rgba(255,255,255,0.2);
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    #switch-btn:hover { color: #fff; border-color: rgba(255,255,255,0.5); }
+
+    /* ── Picker overlay ── */
+    #picker {
+      position: fixed;
+      inset: 0;
+      background: #000;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+      z-index: 10;
+      padding: 32px 20px 40px;
+      overflow-y: auto;
+    }
+
+    #picker h1 { font-size: 22px; font-weight: 700; flex-shrink: 0; }
+    #picker > p { font-size: 14px; color: #666; text-align: center; max-width: 420px; flex-shrink: 0; }
+
+    .group { width: 100%; max-width: 760px; }
+
+    .group-label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      color: #444;
+      margin-bottom: 10px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #1a1a1a;
+    }
+
+    .cards {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+
+    .card {
+      flex: 1 1 180px;
+      max-width: 240px;
+      background: #0d0d0d;
+      border: 1px solid #1e1e1e;
+      border-radius: 14px;
+      padding: 16px 14px;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .card:hover { border-color: #00FF88; background: #091510; }
+
+    .card-title { font-size: 14px; font-weight: 700; margin-bottom: 3px; }
+    .card-sub   { font-size: 11px; color: #555; margin-bottom: 8px; }
+    .card-desc  { font-size: 12px; color: #777; line-height: 1.5; }
+
+    .badge {
+      display: inline-block;
+      font-size: 9px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 8px;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+    }
+    .badge-warn { background: #1e1000; color: #f90; }
+    .badge-ok   { background: #001a0e; color: #00FF88; }
+    .badge-blue { background: #00101a; color: #4af; }
+  </style>
+</head>
+<body>
+
+<!-- ── Picker ── -->
+<div id="picker">
+  <h1>Detection Playground</h1>
+  <p>Choose an ML model to run real-time detection in your browser. Models load on demand.</p>
+
+  <div class="group">
+    <div class="group-label">Face Detection</div>
+    <div class="cards">
+      <div class="card" data-backend="blazeface">
+        <div class="badge badge-warn">Maintenance mode</div>
+        <div class="card-title">BlazeFace</div>
+        <div class="card-sub">TensorFlow.js · WebGL</div>
+        <div class="card-desc">Lightweight face detection with 6 facial landmarks. No longer actively developed.</div>
+      </div>
+      <div class="card" data-backend="mediapipe">
+        <div class="badge badge-ok">Recommended</div>
+        <div class="card-title">MediaPipe Face Detector</div>
+        <div class="card-sub">Tasks Vision · WASM + GPU</div>
+        <div class="card-desc">Modern polished runtime. Same BlazeFace model, more robust and production-ready.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="group">
+    <div class="group-label">Object Detection</div>
+    <div class="cards">
+      <div class="card" data-backend="cocossd">
+        <div class="badge badge-blue">TensorFlow.js</div>
+        <div class="card-title">COCO-SSD</div>
+        <div class="card-sub">MobileNet · 80 classes</div>
+        <div class="card-desc">Detects 80 object classes: people, cars, animals, furniture, and more.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="group">
+    <div class="group-label">Body & Pose</div>
+    <div class="cards">
+      <div class="card" data-backend="posenet">
+        <div class="badge badge-blue">TensorFlow.js</div>
+        <div class="card-title">PoseNet</div>
+        <div class="card-sub">MobileNetV1 · 17 keypoints</div>
+        <div class="card-desc">Estimates full-body pose with 17 skeletal keypoints per person.</div>
+      </div>
+      <div class="card" data-backend="bodypix">
+        <div class="badge badge-blue">TensorFlow.js</div>
+        <div class="card-title">BodyPix</div>
+        <div class="card-sub">MobileNetV1 · Pixel segmentation</div>
+        <div class="card-desc">Segments each person pixel-by-pixel, separating them from the background.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="group">
+    <div class="group-label">Hands & Face Mesh</div>
+    <div class="cards">
+      <div class="card" data-backend="handpose">
+        <div class="badge badge-blue">TensorFlow.js</div>
+        <div class="card-title">Handpose</div>
+        <div class="card-sub">21 landmarks per hand</div>
+        <div class="card-desc">Detects a single hand and estimates all 21 joint positions in 3D.</div>
+      </div>
+      <div class="card" data-backend="facemesh">
+        <div class="badge badge-ok">MediaPipe</div>
+        <div class="card-title">Face Landmarks</div>
+        <div class="card-sub">Tasks Vision · 468 points</div>
+        <div class="card-desc">Full 468-point face mesh with eyes, lips, face oval, and tessellation.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Camera view ── -->
+<div id="container" style="display:none">
+  <video id="video" autoplay playsinline muted></video>
+  <canvas id="canvas"></canvas>
+  <button id="switch-btn">Switch model</button>
+  <div id="detection-count">Loading…</div>
+</div>
+<div id="status" style="display:none">Loading model…</div>
+
+<script type="module">
+  import {
+    drawFaceDetections, drawObjects, drawPoses, drawHands, drawSegmentation, drawFaceMesh,
+    mapBlazeFacePred, mapMediaPipeDet,
+    setStatus as _setStatus, syncCanvasSize,
+  } from './src/detection-utils.js';
+
+  const video          = document.getElementById('video');
+  const canvas         = document.getElementById('canvas');
+  const ctx            = canvas.getContext('2d');
+  const statusEl       = document.getElementById('status');
+  const detectionCount = document.getElementById('detection-count');
+  const picker         = document.getElementById('picker');
+  const container      = document.getElementById('container');
+  const switchBtn      = document.getElementById('switch-btn');
+
+  // ── Monitoring bootstrap ─────────────────────────────────────────────────────
+  // Sentry is disabled unless window.SENTRY_DSN is injected by the deployment platform.
+  const SENTRY_DSN = window.SENTRY_DSN || null;
+  if (SENTRY_DSN && window.Sentry) {
+    Sentry.init({
+      dsn: SENTRY_DSN,
+      tracesSampleRate: 0.2,
+      release: document.querySelector('meta[name="version"]')?.content || 'dev',
+    });
+    // Report Web Vitals as Sentry messages
+    if (window.webVitals) {
+      const report = ({ name, value, id }) => {
+        Sentry.captureMessage(`Web Vital: ${name}`, {
+          level: 'info',
+          extra: { value, id },
+          tags: { vital: name },
+        });
+      };
+      webVitals.onCLS(report);
+      webVitals.onFID(report);
+      webVitals.onLCP(report);
+      webVitals.onFCP(report);
+      webVitals.onTTFB(report);
+    }
+  }
+
+  function sentrySpan(name, fn) {
+    if (!window.Sentry || !SENTRY_DSN) return fn();
+    return Sentry.startSpan({ name, op: 'browser-ml' }, fn);
+  }
+
+  // ── Shared state ─────────────────────────────────────────────────────────────
+  let currentData      = null;   // latest raw output from inference loop
+  let drawFn           = null;   // (ctx, canvas, data) -> count string
+  let inferenceRunning = false;
+  let animFrameId      = null;
+  let tfjsLoaded        = false;
+  let FaceLandmarkerRef = null;  // class ref needed for static connection arrays
+
+  // ── UI helpers ───────────────────────────────────────────────────────────────
+  const showPicker = () => {
+    picker.style.display    = 'flex';
+    container.style.display = 'none';
+    statusEl.style.display  = 'none';
+  };
+  const showCamera = () => {
+    picker.style.display    = 'none';
+    container.style.display = 'block';
+    statusEl.style.display  = 'block';
+  };
+  const setStatus = (msg, error = false) => _setStatus(statusEl, msg, error);
+
+  // ── Script loading ────────────────────────────────────────────────────────────
+  // SRI hashes for pinned CDN scripts — computed via:
+  //   curl -s <URL> | openssl dgst -sha384 -binary | openssl base64 -A
+  // Note: MediaPipe uses dynamic import() which does not support SRI in current browsers.
+  const SCRIPT_SRI = {
+    'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.21.0/dist/tf.min.js':
+      'sha384-BlEG32Mzg9flv5v1KUCKonaGUK4RwdyD4EwaY/yPSyKSN7g4LI/elJN8yAq47GOb',
+    'https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface@0.1.0/dist/blazeface.umd.js':
+      'sha384-HBNt6exZW0B84j9GHc0fJqmyY3LK+BuLkR3aZu3i1iVE0zEDTDMRHH6NFkTdCBAZ',
+    'https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js':
+      'sha384-7qLdgfEQyO9ZQi9ArRHigK+IBto4XPk468jAqc+fnsXaZIcMAhQeLwzggRK7aESl',
+    'https://cdn.jsdelivr.net/npm/@tensorflow-models/posenet@2.2.2/dist/posenet.min.js':
+      'sha384-bR/3thLkcOabrzcc7wlq9nmpHfYfQw8dq3F3a+D0ZC5P14n0iCHC2wLf9xgg2VOj',
+    'https://cdn.jsdelivr.net/npm/@tensorflow-models/handpose@0.0.7/dist/handpose.min.js':
+      'sha384-nfCTZhKkMshTx2EPaZ6emkjmt8zhUt7bkKd8sBD/nkIsldedI5dIvetaMy+ZoFm5',
+    'https://cdn.jsdelivr.net/npm/@tensorflow-models/body-pix@2.2.0/dist/body-pix.min.js':
+      'sha384-/zXv5MhIgLdwao3qW5yB0EosOU+6DqOKLC0RGjzUPwQ8uKXbbZV5gzob4sNXk6/4',
+  };
+
+  function loadScript(src) {
+    return new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = src;
+      if (SCRIPT_SRI[src]) {
+        s.integrity = SCRIPT_SRI[src];
+        s.crossOrigin = 'anonymous';
+      }
+      s.onload = resolve;
+      s.onerror = () => reject(new Error(`Failed to load: ${src}`));
+      document.head.appendChild(s);
+    });
+  }
+
+  async function loadTFJS() {
+    if (tfjsLoaded) return;
+    setStatus('Loading TensorFlow.js…');
+    await loadScript('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.21.0/dist/tf.min.js');
+    tfjsLoaded = true;
+  }
+
+  // ── Camera ───────────────────────────────────────────────────────────────────
+  async function startCamera() {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
+      audio: false,
+    }).catch(err => {
+      if (window.Sentry && SENTRY_DSN) {
+        Sentry.addBreadcrumb({ category: 'camera', message: `Camera denied: ${err.name}`, level: 'error' });
+      }
+      const msg = err.name === 'NotAllowedError'
+        ? 'Camera permission denied. Please allow camera access and reload.'
+        : `Camera error: ${err.message}`;
+      setStatus(msg, true);
+      throw err;
+    });
+    if (window.Sentry && SENTRY_DSN) {
+      Sentry.addBreadcrumb({ category: 'camera', message: 'Camera granted', level: 'info' });
+    }
+    video.srcObject = stream;
+    return new Promise(resolve => { video.onloadedmetadata = resolve; });
+  }
+
+  function stopCamera() {
+    inferenceRunning = false;
+    if (animFrameId) { cancelAnimationFrame(animFrameId); animFrameId = null; }
+    currentData = null;
+    drawFn = null;
+    const stream = video.srcObject;
+    if (stream) { stream.getTracks().forEach(t => t.stop()); video.srcObject = null; }
+  }
+
+  // ── Render loop ───────────────────────────────────────────────────────────────
+  function renderLoop() {
+    try {
+      syncCanvasSize(canvas, video);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      if (drawFn && currentData != null) {
+        detectionCount.textContent = drawFn(ctx, canvas, currentData) ?? '';
+      }
+    } catch (e) {
+      console.warn('Render error, skipping frame:', e);
+      currentData = null;
+    }
+    animFrameId = requestAnimationFrame(renderLoop);
+  }
+
+  // ── Inference loop (shared) ───────────────────────────────────────────────────
+  async function runInferenceLoop(inferFn, targetMs = 33) {
+    inferenceRunning = true;
+    const latencyBuf = [];
+    let frameCount = 0;
+    while (inferenceRunning) {
+      const t0 = performance.now();
+      try {
+        if (video.readyState >= 2) {
+          const result = await inferFn(t0);
+          if (result !== undefined) currentData = result;
+        }
+      } catch (e) {
+        console.warn('Inference error, retrying:', e);
+        currentData = null;
+        await new Promise(r => setTimeout(r, 500));
+        continue;
+      }
+      const elapsed = performance.now() - t0;
+      // Rolling 30-frame latency average reported to Sentry every 90 frames
+      latencyBuf.push(elapsed);
+      if (latencyBuf.length > 30) latencyBuf.shift();
+      frameCount++;
+      if (window.Sentry && SENTRY_DSN && latencyBuf.length === 30 && frameCount % 90 === 0) {
+        const avgMs = latencyBuf.reduce((a, b) => a + b, 0) / 30;
+        Sentry.setMeasurement('inference.avg_ms', avgMs, 'millisecond');
+      }
+      await new Promise(r => setTimeout(r, Math.max(0, targetMs - elapsed)));
+    }
+  }
+
+  // ── Backend boots ─────────────────────────────────────────────────────────────
+
+  async function bootBlazeFace() {
+    await loadTFJS();
+    setStatus('Loading BlazeFace model…');
+    await loadScript('https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface@0.1.0/dist/blazeface.umd.js');
+    const model = await window.blazeface.load();
+    setStatus('Ready — point at a face!');
+    drawFn = drawFaceDetections;
+    runInferenceLoop(async () => {
+      const preds = await model.estimateFaces(video, false);
+      return preds.map(mapBlazeFacePred);
+    });
+  }
+
+  async function bootMediaPipe() {
+    setStatus('Loading MediaPipe runtime…');
+    const { FaceDetector, FilesetResolver } = await import(
+      'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs'
+    );
+    const vision = await FilesetResolver.forVisionTasks(
+      'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm'
+    );
+    setStatus('Loading model…');
+    const detector = await FaceDetector.createFromOptions(vision, {
+      baseOptions: {
+        modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite',
+        delegate: 'GPU',
+      },
+      runningMode: 'VIDEO',
+      minDetectionConfidence: 0.5,
+    });
+    setStatus('Ready — point at a face!');
+    drawFn = drawFaceDetections;
+    runInferenceLoop(async t0 => {
+      const result = detector.detectForVideo(video, t0);
+      return (result.detections ?? []).map(det => mapMediaPipeDet(det, canvas.width, canvas.height));
+    });
+  }
+
+  async function bootCocoSSD() {
+    await loadTFJS();
+    setStatus('Loading COCO-SSD model…');
+    await loadScript('https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js');
+    const model = await window.cocoSsd.load();
+    setStatus('Ready — look around!');
+    drawFn = drawObjects;
+    runInferenceLoop(async () => model.detect(video));
+  }
+
+  async function bootPoseNet() {
+    await loadTFJS();
+    setStatus('Loading PoseNet model…');
+    await loadScript('https://cdn.jsdelivr.net/npm/@tensorflow-models/posenet@2.2.2/dist/posenet.min.js');
+    const net = await window.posenet.load({
+      architecture: 'MobileNetV1',
+      outputStride: 16,
+      multiplier: 0.75,
+    });
+    setStatus('Ready — step back so your body is visible!');
+    drawFn = drawPoses;
+    runInferenceLoop(async () => net.estimateMultiplePoses(video, {
+      flipHorizontal: false,
+      maxDetections: 5,
+      scoreThreshold: 0.5,
+      nmsRadius: 20,
+    }));
+  }
+
+  async function bootHandpose() {
+    await loadTFJS();
+    setStatus('Loading Handpose model…');
+    await loadScript('https://cdn.jsdelivr.net/npm/@tensorflow-models/handpose@0.0.7/dist/handpose.min.js');
+    const model = await window.handpose.load();
+    setStatus('Ready — hold up a hand!');
+    drawFn = drawHands;
+    runInferenceLoop(async () => model.estimateHands(video));
+  }
+
+  async function bootBodyPix() {
+    await loadTFJS();
+    setStatus('Loading BodyPix model…');
+    await loadScript('https://cdn.jsdelivr.net/npm/@tensorflow-models/body-pix@2.2.0/dist/body-pix.min.js');
+    const net = await window.bodyPix.load({
+      architecture: 'MobileNetV1',
+      outputStride: 16,
+      multiplier: 0.5,
+      quantBytes: 2,
+    });
+    setStatus('Ready — stand in view!');
+    drawFn = drawSegmentation;
+    runInferenceLoop(
+      async () => net.segmentPerson(video, {
+        internalResolution: 'low',
+        segmentationThreshold: 0.7,
+        maxDetections: 3,
+      }),
+      100  // ~10 fps — BodyPix is heavy
+    );
+  }
+
+  async function bootFaceLandmarks() {
+    setStatus('Loading MediaPipe runtime…');
+    const { FaceLandmarker, FilesetResolver } = await import(
+      'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs'
+    );
+    FaceLandmarkerRef = FaceLandmarker;
+    const vision = await FilesetResolver.forVisionTasks(
+      'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm'
+    );
+    setStatus('Loading face mesh model…');
+    const detector = await FaceLandmarker.createFromOptions(vision, {
+      baseOptions: {
+        modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
+        delegate: 'GPU',
+      },
+      runningMode: 'VIDEO',
+      numFaces: 2,
+      minFaceDetectionConfidence: 0.5,
+    });
+    setStatus('Ready — point at a face!');
+    drawFn = (ctx, canvas, result) => drawFaceMesh(ctx, canvas, result, FaceLandmarkerRef);
+    runInferenceLoop(async t0 => detector.detectForVideo(video, t0));
+  }
+
+  // ── Orchestration ─────────────────────────────────────────────────────────────
+  const BOOTS = {
+    blazeface: bootBlazeFace,
+    mediapipe: bootMediaPipe,
+    cocossd:   bootCocoSSD,
+    posenet:   bootPoseNet,
+    handpose:  bootHandpose,
+    bodypix:   bootBodyPix,
+    facemesh:  bootFaceLandmarks,
+  };
+
+  async function startBackend(backend) {
+    showCamera();
+    detectionCount.textContent = 'Loading…';
+    if (window.Sentry && SENTRY_DSN) {
+      Sentry.addBreadcrumb({ category: 'model', message: `Selected: ${backend}`, level: 'info' });
+    }
+    const modelLoadStart = performance.now();
+    try {
+      await startCamera();
+      await sentrySpan(`model.load.${backend}`, () => BOOTS[backend]());
+      if (window.Sentry && SENTRY_DSN) {
+        Sentry.captureMessage('Model ready', {
+          level: 'info',
+          tags: { backend },
+          extra: { loadMs: Math.round(performance.now() - modelLoadStart) },
+        });
+      }
+      renderLoop();
+    } catch (e) {
+      console.error(e);
+      setStatus(`Error: ${e.message || e}`, true);
+      if (window.Sentry && SENTRY_DSN) Sentry.captureException(e, { tags: { backend } });
+    }
+  }
+
+  function switchBackend() {
+    stopCamera();
+    showPicker();
+  }
+
+  // ── Event wiring ──────────────────────────────────────────────────────────────
+  document.querySelectorAll('.card[data-backend]').forEach(card => {
+    card.addEventListener('click', () => startBackend(card.dataset.backend));
+  });
+  switchBtn.addEventListener('click', switchBackend);
+</script>
+
+</body>
+</html>
