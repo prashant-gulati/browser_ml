@@ -438,7 +438,8 @@
       latencyBuf.push(elapsed);
       if (latencyBuf.length > 30) latencyBuf.shift();
       frameCount++;
-      if (window.Sentry && SENTRY_DSN && latencyBuf.length === 30 && frameCount % 90 === 0) {
+      if (window.Sentry && SENTRY_DSN && typeof Sentry.setMeasurement === 'function'
+          && latencyBuf.length === 30 && frameCount % 90 === 0) {
         const avgMs = latencyBuf.reduce((a, b) => a + b, 0) / 30;
         Sentry.setMeasurement('inference.avg_ms', avgMs, 'millisecond');
       }
