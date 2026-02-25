@@ -39,11 +39,11 @@ k6 run --env BASE_URL=https://prashantgulati.netlify.app k6/load-test.js
 
 ## Architecture
 
-This is a **zero-build, single-file browser ML app** (`browser-ml.html`) that runs 7 real-time ML backends via webcam entirely in the browser. There is no server, no bundler, and no framework. All ML models load dynamically from CDN on demand.
+This is a **zero-build, single-file browser ML app** (`index.html`) that runs 7 real-time ML backends via webcam entirely in the browser. There is no server, no bundler, and no framework. All ML models load dynamically from CDN on demand.
 
 ### The two-file split
 
-`browser-ml.html` is the primary artifact. To make its logic testable without a browser, pure functions were extracted to `src/detection-utils.js`. The HTML imports from it:
+`index.html` is the primary artifact. To make its logic testable without a browser, pure functions were extracted to `src/detection-utils.js`. The HTML imports from it:
 
 ```js
 import { drawFaceDetections, mapBlazeFacePred, setStatus as _setStatus, ... }
@@ -79,11 +79,11 @@ Functions in `detection-utils.js` take DOM elements (`ctx`, `canvas`, `video`, `
 
 ### Security
 
-- **CSP** — `<meta http-equiv="Content-Security-Policy">` in `browser-ml.html`. Uses `'unsafe-inline'` for `script-src` (unavoidable for inline module scripts) and `worker-src blob:` (required for MediaPipe/BodyPix WASM workers).
+- **CSP** — `<meta http-equiv="Content-Security-Policy">` in `index.html`. Uses `'unsafe-inline'` for `script-src` (unavoidable for inline module scripts) and `worker-src blob:` (required for MediaPipe/BodyPix WASM workers).
 
 CSP = Content security policy = HTTP response header (or <meta> tag) that tells the browser exactly which resources are allowed to load and from where. Anything not whitelisted is blocked — it's a defense-in-depth layer against XSS (cross site scripting) and data injection attacks.
 
-- **SRI** — `SCRIPT_SRI` map in `browser-ml.html` adds `integrity` + `crossorigin` to all `loadScript()` calls. MediaPipe uses `import()` (dynamic ESM) which does not support SRI in current browsers — documented gap.
+- **SRI** — `SCRIPT_SRI` map in `index.html` adds `integrity` + `crossorigin` to all `loadScript()` calls. MediaPipe uses `import()` (dynamic ESM) which does not support SRI in current browsers — documented gap.
 
 SRI = Subresource integrity: browser security feature that lets you verify that files fetched from external sources (like a CDN) haven't been tampered with.
 
@@ -109,4 +109,4 @@ When bumping a CDN library version, recompute its hash:
 ```bash
 curl -s <CDN_URL> | openssl dgst -sha384 -binary | openssl base64 -A
 ```
-Update `SCRIPT_SRI` in `browser-ml.html` and the `<script integrity="...">` tags for Sentry/web-vitals.
+Update `SCRIPT_SRI` in `index.html` and the `<script integrity="...">` tags for Sentry/web-vitals.

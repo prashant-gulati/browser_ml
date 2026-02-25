@@ -1,4 +1,4 @@
-// k6 load test for browser-ml.html static hosting layer.
+// k6 load test for index.html static hosting layer.
 //
 // Tests the static file server only — not the in-browser ML inference,
 // which runs entirely on the client side.
@@ -58,7 +58,7 @@ export const options = isProduction
     };
 
 export default function () {
-  const res = http.get(`${BASE_URL}/browser-ml.html`, {
+  const res = http.get(`${BASE_URL}/`, {
     headers: { 'Accept': 'text/html' },
   });
 

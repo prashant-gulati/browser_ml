@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Camera view', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/browser-ml.html');
+    await page.goto('/');
   });
 
   test('clicking mediapipe card hides the picker', async ({ page }) => {

@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Picker page', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/browser-ml.html');
+    await page.goto('/');
   });
 
   test('picker is visible on load', async ({ page }) => {

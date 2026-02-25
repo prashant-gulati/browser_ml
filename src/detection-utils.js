@@ -1,4 +1,4 @@
-// Pure drawing utilities extracted from browser-ml.html for testability.
+// Pure drawing utilities extracted from index.html for testability.
 // All drawing functions take `ctx` as an explicit first parameter (no closure over DOM).
 
 // ctx is a Canvas 2D rendering context — the standard browser API object returned by canvas.getContext('2d').
