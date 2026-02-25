@@ -9,7 +9,7 @@
 //   k6 run k6/load-test.js
 //
 // Run against deployed URL:
-//   k6 run --env BASE_URL=https://your-app.netlify.app k6/load-test.js
+//   k6 run --env BASE_URL=https://prashantgulati.netlify.app k6/load-test.js
 
 import http from 'k6/http';
 import { check, sleep } from 'k6';
@@ -41,11 +41,11 @@ export default function () {
 
   const ok = check(res, {
     'status is 200':              r => r.status === 200,
-    'contains Browser ML Playground': r => r.body.includes('Browser ML Playground'),
-    'contains all 7 backends':    r => ['blazeface', 'mediapipe', 'cocossd', 'posenet',
+    'contains Browser ML Playground': r => r.body != null && r.body.includes('Browser ML Playground'),
+    'contains all 7 backends':    r => r.body != null && ['blazeface', 'mediapipe', 'cocossd', 'posenet',
                                         'handpose', 'bodypix', 'facemesh']
                                         .every(b => r.body.includes(b)),
-    'response under 100KB':       r => r.body.length < 102_400,
+    'response under 100KB':       r => r.body != null && r.body.length < 102_400,
     'content-type is html':       r => (r.headers['Content-Type'] || '').includes('text/html'),
   });
 
