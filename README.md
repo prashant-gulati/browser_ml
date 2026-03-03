@@ -2,7 +2,7 @@
 
 Real-time machine learning in the browser — no server, no bundler, no install. Point your webcam and switch between 7 ML backends live.
 
-**[Live demo](https://prashantgulati.netlify.app)**
+**[Live demo](https://prashantgulati.netlify.app/browser-ml.html)**
 
 ---
 
@@ -26,7 +26,7 @@ All video stays on your device. Nothing is sent to a server.
 
 ## Architecture
 
-This is a **zero-build, single-file app** (`index.html`). No framework, no bundler, no build step — open the file and it works. ML models load from CDN on demand when you pick a backend.
+This is a **zero-build, single-file app** (`browser-ml.html`). No framework, no bundler, no build step — open the file and it works. ML models load from CDN on demand when you pick a backend.
 
 To keep the logic testable without a real browser, pure functions live in [`src/detection-utils.js`](src/detection-utils.js) and are imported by the HTML file. Functions take DOM elements as explicit parameters rather than closing over globals — this is the key design constraint.
 
@@ -48,7 +48,7 @@ npm run serve
 # Open http://localhost:8080
 ```
 
-Or just open the [live demo](https://prashantgulati.netlify.app) — no setup needed.
+Or just open the [live demo](https://prashantgulati.netlify.app/browser-ml.html) — no setup needed.
 
 ---
 
@@ -90,7 +90,7 @@ k6 run --env BASE_URL=https://prashantgulati.netlify.app k6/load-test.js
 ```bash
 curl -s <CDN_URL> | openssl dgst -sha384 -binary | openssl base64 -A
 ```
-Update `SCRIPT_SRI` in `index.html` and the `<script integrity="...">` tags for Sentry/web-vitals.
+Update `SCRIPT_SRI` in `browser-ml.html` and the `<script integrity="...">` tags for Sentry/web-vitals.
 
 ---
 
@@ -117,3 +117,10 @@ Update `SCRIPT_SRI` in `index.html` and the `<script integrity="...">` tags for 
 **Operability**
 - SRI hash update process — CDN URLs are pinned to exact versions, but there's no automated process for bumping them when models get security patches
 - CI/CD — run tests on PRs to catch broken CDN URLs before they reach users
+
+**Expand model selection**
+- More MediaPipe Vision tasks: Gesture Recognition, Image Segmentation, Holistic Landmarker, Face Stylizer, Image Embedding, Interactive Segmentation
+- MediaPipe Text: Text Classification, Text Embedding, Language Detection
+- MediaPipe Audio: Audio Classification
+- PyTorch models via ONNX Runtime Web
+- Hugging Face models via Transformers.js
