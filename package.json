@@ -12,6 +12,9 @@
     "serve": "npx serve . -l 8080",
     "load-test": "k6 run k6/load-test.js"
   },
+  "overrides": {
+    "minimatch": "^3.1.4"
+  },
   "devDependencies": {
     "vitest": "^1.6.0",
     "jsdom": "^24.1.0",
