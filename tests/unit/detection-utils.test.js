@@ -1,3 +1,7 @@
+// The unit tests are tightly focused on observable outputs and canvas API calls — 
+// they don't test internal implementation details. That's intentional and good: if drawBox 
+// internally refactors how it draws corners, tests only break if the external behavior changes.
+
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   drawBox, drawDot, drawConnections,

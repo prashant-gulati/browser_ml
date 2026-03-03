@@ -2,7 +2,7 @@
 
 Real-time machine learning in the browser — no server, no bundler, no install. Point your webcam and switch between 7 ML backends live.
 
-**[Live demo](https://prashantgulati.netlify.app/browser_ml)**
+**[Live demo](https://prashantgulati.netlify.app)**
 
 ---
 
@@ -48,7 +48,7 @@ npm run serve
 # Open http://localhost:8080
 ```
 
-Or just open the [live demo](https://prashantgulati.netlify.app/browser_ml) — no setup needed.
+Or just open the [live demo](https://prashantgulati.netlify.app) — no setup needed.
 
 ---
 

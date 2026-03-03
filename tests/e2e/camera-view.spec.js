@@ -1,3 +1,4 @@
+// only tests for data-backend="mediapipe"; but deems that sufficient
 import { test, expect } from '@playwright/test';
 
 test.describe('Camera view', () => {
