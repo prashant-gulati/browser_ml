@@ -9,7 +9,7 @@
 //   k6 run k6/load-test.js
 //
 // Run against deployed Netlify URL:
-//   k6 run --env BASE_URL=https://prashantgulati.netlify.app k6/load-test.js
+//   k6 run --env BASE_URL=https://browserml.netlify.app k6/load-test.js
 //
 // Netlify free tier will rate-limit / reset connections above ~10 VUs.
 // The profile auto-scales based on whether BASE_URL is set.

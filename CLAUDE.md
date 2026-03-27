@@ -34,7 +34,7 @@ npm run serve
 
 # Load test (requires k6 binary installed separately — https://k6.io/docs/get-started/installation/)
 k6 run k6/load-test.js
-k6 run --env BASE_URL=https://prashantgulati.netlify.app k6/load-test.js
+k6 run --env BASE_URL=https://browserml.netlify.app k6/load-test.js
 ```
 
 ## Architecture
